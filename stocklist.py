@@ -2,12 +2,11 @@ from ftplib import FTP
 import os
 import errno
 
-exportList = []
-
-
 class NasdaqController:
+    exportList = []
+
     def getList(self):
-        return exportList
+        return self.exportList
 
     def __init__(self, update=True):
 
@@ -51,6 +50,5 @@ class NasdaqController:
                         continue
 
                     all_listed.write(line[0] + ",")
-                    global exportList
-                    exportList.append(line[0])
+                    self.exportList.append(line[0])
                     all_listed.write(line[0] + "|" + line[1] + "\n")

@@ -9,12 +9,14 @@ import sys
 from stocklist import NasdaqController
 from tqdm import tqdm
 
+DAYS_TO_REPORT = 1
+MONTHS_TO_CHECK = 5
 
 class mainObj:
-    def getData(self, ticker):
+    def getData(self, ticker, months):
         currentDate = datetime.datetime.strptime(
             date.today().strftime("%Y-%m-%d"), "%Y-%m-%d")
-        pastDate = currentDate - dateutil.relativedelta.relativedelta(months=5)
+        pastDate = currentDate - dateutil.relativedelta.relativedelta(months=months)
         sys.stdout = open(os.devnull, "w")
         data = yf.download(ticker, pastDate, currentDate)
         sys.stdout = sys.__stdout__
@@ -45,40 +47,52 @@ class mainObj:
             if temp > upper_limit:
                 indexs.append(str(data['Date'].iloc[i])[:-9])
                 outliers.append(temp)
-        d = {'Dates': indexs, 'Volume': outliers}
+        d = {'Dates': indexs, 'Volume': outliers, 'Average' : data_mean}
         return d
+    
+    def printAndAdd(self, s):
+        print(s)
+        return s
 
     def customPrint(self, d, tick):
-        print("\n\n\n*******  " + tick.upper() + "  *******")
-        print("Ticker is: "+tick.upper())
+        output = self.printAndAdd("*******  " + tick.upper() + "  *******") + "\n"
+        output += self.printAndAdd("Average: {}\n".format(d['Average']))
+        output += "Anomalies: \n"
         for i in range(len(d['Dates'])):
             str1 = str(d['Dates'][i])
             str2 = str(d['Volume'][i])
-            print(str1 + " - " + str2)
-        print("*********************\n\n\n")
+            output += self.printAndAdd(str1 + " - " + str2 + "\n")
+        return output
 
     def days_between(self, d1, d2):
         d1 = datetime.datetime.strptime(d1, "%Y-%m-%d")
         d2 = datetime.datetime.strptime(d2, "%Y-%m-%d")
         return abs((d2 - d1).days)
 
-    def main_func(self, cutoff):
+    def main_func(self, cutoff, months, days):
+        if months is None:
+            months = MONTHS_TO_CHECK
+        if days is None:
+            days = DAYS_TO_REPORT
+        yield "Scanning for stocks that exceeded {} standard deviations of their {}-month average in the last {} days".format(cutoff, months, days)
         StocksController = NasdaqController(True)
         list_of_tickers = StocksController.getList()
         currentDate = datetime.datetime.strptime(
             date.today().strftime("%Y-%m-%d"), "%Y-%m-%d")
         start_time = time.time()
         for x in tqdm(list_of_tickers):
-            d = (self.find_anomalies_two(self.getData(x), cutoff))
+            d = (self.find_anomalies_two(self.getData(x, months), cutoff))
             if d['Dates']:
                 for i in range(len(d['Dates'])):
-                    if self.days_between(str(currentDate)[:-9], str(d['Dates'][i])) <= 3:
-                        self.customPrint(d, x)
+                    if self.days_between(str(currentDate)[:-9], str(d['Dates'][i])) <= days:
+                        stock = self.customPrint(d, x)
+                        yield stock
 
-        print("\n\n\n\n--- this took %s seconds to run ---" %
-              (time.time() - start_time))
+        timeTaken = "\n\n\n\n--- this took {} seconds to run ---".format(time.time() - start_time)
+        print(timeTaken)
+        yield timeTaken
 
 
 # input desired anomaly standard deviation cuttoff
 # run time around 50 minutes for every single ticker.
-mainObj().main_func(10)
+# mainObj().main_func(10)
